@@ -1,0 +1,8 @@
+.env 
+resources/ 
+__pycache__/ 
+*.pyc 
+fix.py 
+rag1.py 
+rag2.py 
+test_loader.py 
