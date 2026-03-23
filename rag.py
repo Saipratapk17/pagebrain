@@ -76,16 +76,16 @@ def process_urls(urls):
     yield "Initializing Components"
     initialize_components()
 
-    yield "Resetting vector store...✅"
+    yield "Resetting vector store..."
     vector_store.reset_collection()
 
-    yield "Loading data...✅"
+    yield "Loading data..."
     all_data = []
     for source in urls:
         try:
             docs = load_source(source)
             all_data.extend(docs)
-            yield f"Loaded: {source[:60]}...✅"
+            yield f"Loaded: {source[:60]}..."
         except Exception as e:
             yield f"Failed to load: {source[:60]} — {str(e)}"
 
@@ -93,18 +93,18 @@ def process_urls(urls):
         yield "❌ No content extracted from any source. Try different URLs."
         return
 
-    yield f"Total pages/documents loaded: {len(all_data)}...✅"
+    yield f"Total pages/documents loaded: {len(all_data)}..."
 
-    yield "Splitting text into chunks...✅"
+    yield "Splitting text into chunks..."
     text_splitter = RecursiveCharacterTextSplitter(
         separators=["\n\n", "\n", ".", " "],
         chunk_size=CHUNK_SIZE
     )
     docs = text_splitter.split_documents(all_data)
 
-    yield f"Total chunks created: {len(docs)}...✅"
+    yield f"Total chunks created: {len(docs)}..."
 
-    yield "Add chunks to vector database...✅"
+    yield "Add chunks to vector database..."
     if not docs:
         yield "❌ No content extracted. Try a different URL or PDF."
         return
@@ -119,9 +119,25 @@ def generate_answer(query):
     if not vector_store:
         raise RuntimeError("Vector database is not initialized ")
 
-    chain = RetrievalQAWithSourcesChain.from_llm(llm=llm, retriever=vector_store.as_retriever())
+    retriever = vector_store.as_retriever()
+    chain = RetrievalQAWithSourcesChain.from_llm(
+        llm=llm,
+        retriever=retriever,
+        return_source_documents=True
+    )
     result = chain.invoke({"question": query}, return_only_outputs=True)
+
+    # Try to get sources from result first
     sources = result.get("sources", "")
+
+    # If sources empty — extract from source documents directly
+    if not sources and "source_documents" in result:
+        source_list = list(set([
+            doc.metadata.get("source", "")
+            for doc in result["source_documents"]
+            if doc.metadata.get("source")
+        ]))
+        sources = "\n".join(source_list)
 
     return result['answer'], sources
 
